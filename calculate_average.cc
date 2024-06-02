@@ -4,7 +4,10 @@
 #include <unordered_map>
 #include <algorithm>
 #include <vector>
+#include <chrono>
+#include <functional>
 
+bool DEBUGGING = true;
 
 std::string inputFileName = "./measurements.txt";
 
@@ -33,6 +36,22 @@ public:
 };
 
 using Stations = std::unordered_map<std::string, Station>;
+
+template <typename Func, typename... Args>
+void executeAndProfile(std::string profileName, Func&& func, Args&&... args) {
+  auto start = std::chrono::high_resolution_clock::now();
+
+  std::forward<Func>(func)(std::forward<Args>(args)...);
+
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double, std::milli> elapsed = end - start;
+
+  if (DEBUGGING) {
+    std::cerr << profileName << " duration: "
+      << std::fixed << std::setprecision(1) << elapsed.count() / 1000
+      << " seconds" << std::endl;
+  }
+}
 
 void output(Stations& stations) {
   std::vector<std::string> names;
@@ -67,23 +86,22 @@ int main(int argc, char** argv) {
     inputFileName = argv[1];
   }
 
-  // std::cout << "file name: " << inputFileName << std::endl;
-
   Stations stations;
 
   std::ifstream fin(inputFileName);
   std::string line;
 
-  while (std::getline(fin, line)) {
-    // std::cout << "line: " << line << std::endl;
-    std::size_t splitLoc = line.find(';');
-    std::string stationName = line.substr(0, splitLoc);
-    std::string measurementStr = line.substr(splitLoc + 1, line.length() - splitLoc);
-    if (stations.find(stationName) == stations.end()) {
-      stations.emplace(stationName, Station());
+  executeAndProfile("main", [&]() {
+    while (std::getline(fin, line)) {
+      std::size_t splitLoc = line.find(';');
+      std::string stationName = line.substr(0, splitLoc);
+      std::string measurementStr = line.substr(splitLoc + 1, line.length() - splitLoc);
+      if (stations.find(stationName) == stations.end()) {
+        stations.emplace(stationName, Station());
+      }
+      stations[stationName].addMeasurement(std::stod(measurementStr));
     }
-    stations[stationName].addMeasurement(std::stod(measurementStr));
-  }
+  });
 
   output(stations);
 
