@@ -543,3 +543,9 @@ This code base is available under the Apache License, version 2.
 
 Be excellent to each other!
 More than winning, the purpose of this challenge is to have fun and learn something new.
+
+
+## Versions
+
+baseline: 10 million: 12.5s
+
