@@ -11,14 +11,18 @@ bool DEBUGGING = true;
 
 std::string inputFileName = "./measurements.txt";
 
+
+/**
+ * Temperatures are multiplied by 10 as stored as int
+*/
 class Station {
 public:
-  double minTemp;
-  double maxTemp;
-  double totalTemp;
+  int minTemp;
+  int maxTemp;
+  int totalTemp;
   int measurementCount;
 public:
-  void addMeasurement(double temp) {
+  void addMeasurement(int temp) {
     totalTemp += temp;
     ++measurementCount;
 
@@ -30,8 +34,8 @@ public:
     if (temp > maxTemp) maxTemp = temp;
   }
 
-  double averageTemp() {
-    return totalTemp / measurementCount;
+  float averageTemp() {
+    return (float) totalTemp / measurementCount;
   }
 };
 
@@ -70,15 +74,54 @@ void output(Stations& stations) {
     Station& station = stations[name];
 
     std::cout << name << "="
-      << station.minTemp << "/"
-      << station.averageTemp() << "/"
-      << station.maxTemp;
+      << (float)station.minTemp / 10 << "/"
+      << station.averageTemp() / 10 << "/"
+      << (float) station.maxTemp / 10;
     if (i != names.size() - 1) {
       std::cout << ", ";
     }
   }
 
   std::cout << "}" << std::endl;
+}
+
+int fastS2I(std::string& line, int startIndex) {
+  int ptr = startIndex;
+  bool isPos = true;
+  if (line[ptr] == '+') {
+    ++ptr;
+  } else if (line[ptr] == '-') {
+    ++ptr;
+    isPos = false;
+  }
+
+  int result = 0;
+  for (;ptr < line.length(); ++ptr) {
+    if (line[ptr] == '.') {
+      continue;
+    }
+
+    result = result * 10 + (line[ptr] - '0');
+  }
+
+  return isPos ? result : -result;
+}
+
+void parseLineAndRecord(std::string& line, Stations& stations) {
+  std::string name;
+  int ptr;
+  for (ptr = 0; ptr < line.length(); ++ptr) {
+    if (line[ptr] == ';') {
+      name = line.substr(0, ptr);
+      break;
+    }
+  }
+
+  int temp = fastS2I(line, ptr + 1);
+  // int temp = stoi(line.substr(ptr + 1, line.length() - (ptr + 1)));
+
+  stations.try_emplace(name, Station());
+  stations[name].addMeasurement(temp);
 }
 
 int main(int argc, char** argv) {
@@ -93,13 +136,7 @@ int main(int argc, char** argv) {
 
   executeAndProfile("main", [&]() {
     while (std::getline(fin, line)) {
-      std::size_t splitLoc = line.find(';');
-      std::string stationName = line.substr(0, splitLoc);
-      std::string measurementStr = line.substr(splitLoc + 1, line.length() - splitLoc);
-      if (stations.find(stationName) == stations.end()) {
-        stations.emplace(stationName, Station());
-      }
-      stations[stationName].addMeasurement(std::stod(measurementStr));
+      parseLineAndRecord(line, stations);
     }
   });
 

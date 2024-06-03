@@ -49,5 +49,6 @@ out_expected.txt
 /*-timing.json
 
 calc
+calc_baseline
 output.txt
 output_sample.txt
