@@ -50,5 +50,6 @@ out_expected.txt
 
 calc
 calc_baseline
+calc_v*
 output.txt
 output_sample.txt

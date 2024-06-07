@@ -547,5 +547,6 @@ More than winning, the purpose of this challenge is to have fun and learn someth
 
 ## Versions
 
-baseline: 10 million: 12.5s
-
+100 million results. On my macbook pro
+baseline: 10 million: 22.07s
+v1: baseline + custom parse function: 17.96
