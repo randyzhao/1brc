@@ -7,11 +7,23 @@
 #include <chrono>
 #include <functional>
 #include <sys/mman.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <thread>
+#include <mutex>
 
 bool DEBUGGING = true;
 
+size_t CHUNK_SIZE = 1024 * 1024 * 50; // 50 MB chunks
+
 std::string inputFileName = "./measurements.txt";
 
+int THREADS_COUNT = 5;
+int LEFT_OVER_BUFFER_SIZE = 1000;
+int HANDLE_LEFT_OVER_BUFFER_THREASHOLD = 700;
+
+std::mutex StationsMutex;
 
 /**
  * Temperatures are multiplied by 10 as stored as int
@@ -70,43 +82,83 @@ void output(Stations& stations) {
   std::cout << "}" << std::endl;
 }
 
-int fastS2I(std::string& line, int startIndex) {
+int fastS2I(char *data, int startIndex, int& result) {
   int ptr = startIndex;
   bool isPos = true;
-  if (line[ptr] == '+') {
+  if (data[ptr] == '+') {
     ++ptr;
-  } else if (line[ptr] == '-') {
+  } else if (data[ptr] == '-') {
     ++ptr;
     isPos = false;
   }
 
-  int result = 0;
-  for (;ptr < line.length(); ++ptr) {
-    if (line[ptr] == '.') {
+  for (;data[ptr] != '\n'; ++ptr) {
+    if (data[ptr] == '.') {
       continue;
     }
 
-    result = result * 10 + (line[ptr] - '0');
+    result = result * 10 + (data[ptr] - '0');
   }
 
-  return isPos ? result : -result;
+  if (isPos) {
+    result = -result;
+  }
+
+  return ptr;
 }
 
-void parseLineAndRecord(std::string& line, Stations& stations) {
-  std::string name;
-  int ptr;
-  for (ptr = 0; ptr < line.length(); ++ptr) {
-    if (line[ptr] == ';') {
-      name = line.substr(0, ptr);
-      break;
+/**
+ * Handle the chunk in data with range [startIdx, endIdx)
+*/
+void handleChunk(
+    char * data,
+    int startIdx,
+    int endIdx,
+    std::function<void(std::string&, int)> registerTemperature10)
+{
+  int ptr = startIdx;
+  while (ptr < endIdx) {
+    // get name
+    std::string name;
+    char *nameStart = data + ptr;
+    for (;ptr < endIdx; ++ptr) {
+      if (data[ptr] == ';') {
+        name = std::string(nameStart, data + ptr);
+        break;
+      }
+    }
+
+    ++ptr; // consume ";"
+    int temperature10;
+    ptr = fastS2I(data, ptr, temperature10);
+
+    registerTemperature10(name, temperature10);
+  }
+}
+
+/**
+ * Find the index of last \n in data, in the range of [startIdx, endIdx)
+*/
+int findLastRowEnd(char* data, int startIdx, int endIdx) {
+  int ptr = endIdx;
+  for (;ptr >= startIdx;--ptr) {
+    if (data[ptr] == '\n') {
+      return ptr;
     }
   }
+  return ptr;
+}
 
-  int temp = fastS2I(line, ptr + 1);
-  // int temp = stoi(line.substr(ptr + 1, line.length() - (ptr + 1)));
-
-  stations.try_emplace(name, Station());
-  stations[name].addMeasurement(temp);
+/**
+ * Find the index of first \n in data, in the range of [startIdx, endIdx)
+*/
+int findFirstRowEnd(char* data, int startIdx, int endIdx) {
+  for (int ptr = startIdx; ptr < endIdx; ++ptr) {
+    if (data[ptr] == '\n') {
+      return ptr;
+    }
+  }
+  return endIdx;
 }
 
 int main(int argc, char** argv) {
@@ -116,11 +168,73 @@ int main(int argc, char** argv) {
 
   Stations stations;
 
-  std::ifstream fin(inputFileName);
-  std::string line;
+  int fd = open(inputFileName.c_str(), O_RDONLY);
+  if (fd == -1) {
+    std::cerr << "Error opening file: " << inputFileName << std::endl;
+    return 1;
+  }
 
-  while (std::getline(fin, line)) {
-    parseLineAndRecord(line, stations);
+  struct stat sb;
+  if (fstat(fd, &sb)) {
+    std::cerr << "Error getting file size" << std::endl;
+    close(fd);
+    return 1;
+  }
+
+  size_t fileSize = sb.st_size;
+  size_t ptr = 0;
+
+  char leftOverRowBuffer[LEFT_OVER_BUFFER_SIZE];
+  memset(leftOverRowBuffer, 0, sizeof(char) * LEFT_OVER_BUFFER_SIZE);
+  int leftOverRowBufferPtr = 0;
+
+  std::vector<std::thread> threads;
+
+  while (ptr < fileSize) {
+    size_t mapSize = std::min(CHUNK_SIZE, fileSize - ptr);
+    char* fileData = (char*)mmap(nullptr, mapSize, PROT_READ, MAP_PRIVATE, fd, ptr);
+    if (fileData == MAP_FAILED) {
+      std::cerr << "Error mapping file!" << std::endl;
+      close(fd);
+      return 1;
+    }
+
+    int firstEndOfRow = findFirstRowEnd(fileData, 0, mapSize);
+    int lastEndOfRow = findLastRowEnd(fileData, 0, mapSize);
+
+    memcpy(leftOverRowBuffer + leftOverRowBufferPtr, fileData, firstEndOfRow);
+
+    // TODO: unordered_map is not thread safe
+    threads.emplace_back(handleChunk, fileData, firstEndOfRow + 1, mapSize,
+      [&stations](std::string& name, int temperature10) {
+          std::lock_guard<std::mutex> lock(StationsMutex);
+          stations.try_emplace(name, Station());
+          stations[name].addMeasurement(temperature10);
+        });
+
+    if (leftOverRowBufferPtr >= HANDLE_LEFT_OVER_BUFFER_THREASHOLD) {
+      handleChunk(
+        leftOverRowBuffer,
+        0,
+        leftOverRowBufferPtr,
+        [&stations](std::string& name, int temperature10) {
+          std::lock_guard<std::mutex> lock(StationsMutex);
+          stations.try_emplace(name, Station());
+          stations[name].addMeasurement(temperature10);
+        }
+      );
+      memset(leftOverRowBuffer, 0, sizeof(char) * LEFT_OVER_BUFFER_SIZE);
+      leftOverRowBufferPtr = 0;
+    }
+    memcpy(leftOverRowBuffer + leftOverRowBufferPtr, fileData + lastEndOfRow + 1, mapSize - lastEndOfRow - 1);
+    leftOverRowBufferPtr += mapSize - lastEndOfRow - 1;
+
+    if (threads.size() >= THREADS_COUNT) {
+      for (auto& t: threads) {
+        t.join();
+      }
+      threads.clear();
+    }
   }
 
   output(stations);
