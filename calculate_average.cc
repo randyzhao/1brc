@@ -6,6 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <functional>
+#include <sys/mman.h>
 
 bool DEBUGGING = true;
 
@@ -40,22 +41,6 @@ public:
 };
 
 using Stations = std::unordered_map<std::string, Station>;
-
-template <typename Func, typename... Args>
-void executeAndProfile(std::string profileName, Func&& func, Args&&... args) {
-  auto start = std::chrono::high_resolution_clock::now();
-
-  std::forward<Func>(func)(std::forward<Args>(args)...);
-
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> elapsed = end - start;
-
-  if (DEBUGGING) {
-    std::cerr << profileName << " duration: "
-      << std::fixed << std::setprecision(1) << elapsed.count() / 1000
-      << " seconds" << std::endl;
-  }
-}
 
 void output(Stations& stations) {
   std::vector<std::string> names;
@@ -134,11 +119,9 @@ int main(int argc, char** argv) {
   std::ifstream fin(inputFileName);
   std::string line;
 
-  executeAndProfile("main", [&]() {
-    while (std::getline(fin, line)) {
-      parseLineAndRecord(line, stations);
-    }
-  });
+  while (std::getline(fin, line)) {
+    parseLineAndRecord(line, stations);
+  }
 
   output(stations);
 
