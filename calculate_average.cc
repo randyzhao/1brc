@@ -114,7 +114,7 @@ void handleChunk(
     char * data,
     int startIdx,
     int endIdx,
-    std::function<void(std::string&, int)> registerTemperature10)
+    std::function<void(std::string&, int)> addMeasurement)
 {
   int ptr = startIdx;
   while (ptr < endIdx) {
@@ -129,10 +129,10 @@ void handleChunk(
     }
 
     ++ptr; // consume ";"
-    int temperature10;
+    int temperature10 = -1000;
     ptr = fastS2I(data, ptr, temperature10);
 
-    registerTemperature10(name, temperature10);
+    addMeasurement(name, temperature10);
   }
 }
 
@@ -140,7 +140,7 @@ void handleChunk(
  * Find the index of last \n in data, in the range of [startIdx, endIdx)
 */
 int findLastRowEnd(char* data, int startIdx, int endIdx) {
-  int ptr = endIdx;
+  int ptr = endIdx - 1;
   for (;ptr >= startIdx;--ptr) {
     if (data[ptr] == '\n') {
       return ptr;
@@ -203,25 +203,23 @@ int main(int argc, char** argv) {
     int lastEndOfRow = findLastRowEnd(fileData, 0, mapSize);
 
     memcpy(leftOverRowBuffer + leftOverRowBufferPtr, fileData, firstEndOfRow);
+    leftOverRowBufferPtr += firstEndOfRow;
+
+    auto addMeasurement = [&stations](std::string& name, int temperature10) {
+      std::lock_guard<std::mutex> lock(StationsMutex);
+      stations.try_emplace(name, Station());
+      stations[name].addMeasurement(temperature10);
+    };
 
     // TODO: unordered_map is not thread safe
-    threads.emplace_back(handleChunk, fileData, firstEndOfRow + 1, mapSize,
-      [&stations](std::string& name, int temperature10) {
-          std::lock_guard<std::mutex> lock(StationsMutex);
-          stations.try_emplace(name, Station());
-          stations[name].addMeasurement(temperature10);
-        });
+    threads.emplace_back(handleChunk, fileData, firstEndOfRow + 1, mapSize, addMeasurement);
 
     if (leftOverRowBufferPtr >= HANDLE_LEFT_OVER_BUFFER_THREASHOLD) {
       handleChunk(
         leftOverRowBuffer,
         0,
         leftOverRowBufferPtr,
-        [&stations](std::string& name, int temperature10) {
-          std::lock_guard<std::mutex> lock(StationsMutex);
-          stations.try_emplace(name, Station());
-          stations[name].addMeasurement(temperature10);
-        }
+        addMeasurement
       );
       memset(leftOverRowBuffer, 0, sizeof(char) * LEFT_OVER_BUFFER_SIZE);
       leftOverRowBufferPtr = 0;
@@ -235,6 +233,9 @@ int main(int argc, char** argv) {
       }
       threads.clear();
     }
+
+    ptr += mapSize;
+    munmap(fileData, mapSize);
   }
 
   output(stations);
