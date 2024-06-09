@@ -550,3 +550,5 @@ More than winning, the purpose of this challenge is to have fun and learn someth
 100 million results. On my macbook pro
 baseline: 10 million: 22.07s
 v1: baseline + custom parse function: 17.96
+v2: direct memory mapping. No multi-threading: 9.62
+
