@@ -51,5 +51,6 @@ out_expected.txt
 calc
 calc_baseline
 calc_v*
+calculate_average
 output.txt
 output_sample.txt
