@@ -227,9 +227,6 @@ void handleMappedMemoryWithThreads(
   // }
 
   handleChunk(fileData, firstEndOfRow + 1, lastEndOfRow, addMeasurement);
-
-  // TODO: Handle first and last incomplete row
-
 }
 
 int main(int argc, char** argv) {
