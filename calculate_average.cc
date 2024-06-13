@@ -17,8 +17,8 @@ bool DEBUGGING = true;
 
 size_t CHUNK_SIZE = 1024 * 1024 * 50; // 50 MB chunks
 
-// std::string inputFileName = "./src/test/resources/samples/measurements-10.txt";
-std::string inputFileName = "./measurements.txt";
+std::string inputFileName = "./src/test/resources/samples/measurements-10.txt";
+// std::string inputFileName = "./measurements.txt";
 
 int THREADS_COUNT = 5;
 int LEFT_OVER_BUFFER_SIZE = 1000;
@@ -189,7 +189,7 @@ void handleMappedMemoryWithThreads(
     Stations& stations
 ) {
   auto addMeasurement = [&stations](std::string& name, int temperature10) {
-    // std::lock_guard<std::mutex> lock(StationsMutex);
+    std::lock_guard<std::mutex> lock(StationsMutex);
     stations.try_emplace(name, Station());
     stations[name].addMeasurement(temperature10);
   };
@@ -207,26 +207,47 @@ void handleMappedMemoryWithThreads(
     prevLeftOverData = std::string(fileData + lastEndOfRow + 1, mapSize - lastEndOfRow - 1);
   }
 
-  // std::vector<std::thread> threads;
+  std::vector<std::thread> threads;
 
-  // threads.emplace_back(
-  //   handleChunk,
-  //   fileData,
-  //   firstEndOfRow + 1,
-  //   mapSize,
-  //   mapSize,
-  //   addMeasurement
-  // );
+  int threadBeginIdx = firstEndOfRow + 1;
+  // TODO: Bug when calculating thread end index
+  for (int i = 0; i < THREADS_COUNT; ++i) {
+    int threadEndIdx = std::min(threadBeginIdx+ CHUNK_SIZE, mapSize);
+    int threadEndIdxExtended = findLastRowEndExtended(
+      fileData,
+      threadBeginIdx,
+      threadEndIdx,
+      mapSize
+    );
+
+    std::cerr << "threadId: " << i << " " << threadBeginIdx << " " << threadEndIdx + 1
+      << std::endl;
+
+    // threads.emplace_back(
+    //   handleChunk,
+    //   fileData,
+    //   threadBeginIdx,
+    //   threadEndIdx + 1,
+    //   addMeasurement
+    // );
+
+    handleChunk(
+      fileData,
+      threadBeginIdx,
+      threadEndIdxExtended + 1,
+      addMeasurement
+    );
+
+    threadBeginIdx = threadEndIdxExtended + 1;
+    if (threadBeginIdx > lastEndOfRow) {
+      break;
+    }
+  }
 
 
-  // if (threads.size() >= THREADS_COUNT) {
-  //   for (auto& t: threads) {
-  //     t.join();
-  //   }
-  //   threads.clear();
-  // }
-
-  handleChunk(fileData, firstEndOfRow + 1, lastEndOfRow, addMeasurement);
+  for (auto& t: threads) {
+    t.join();
+  }
 }
 
 int main(int argc, char** argv) {
