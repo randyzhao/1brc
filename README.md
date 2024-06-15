@@ -547,9 +547,16 @@ More than winning, the purpose of this challenge is to have fun and learn someth
 
 ## Versions
 
-100 million results. On my macbook pro
-baseline: 10 million: 22.07s
-v1: baseline + custom parse function: 17.96s
-v2: direct memory mapping. No multi-threading: 10.2s
-v3: direct memory mapping and multi-threading: 2.9s
 
+* baseline
+* v1: baseline + custom parse function
+* v2: direct memory mapping. No multi-threading
+* v3: direct memory mapping and multi-threading
+
+Measured on macbook pro with 2.2 GHz 6-Core Intel Core i7.
+| Code     | 100m time (s) |  1b time (s) |
+|----------|:-------------:|:------------:|
+| baseline |    22.1s      |   273.2s     |
+| v1       |    18.0s      |   280s       |
+| v2       |    10.2s      |   255.8s     |
+| v3       |    2.9s       |   58s        |
