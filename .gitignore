@@ -65,3 +65,5 @@ output_baseline.txt
 output_100m_baseline.txt
 output_100m.txt
 output_v3.txt
+
+*.dSYM
