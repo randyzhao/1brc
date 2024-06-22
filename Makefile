@@ -2,8 +2,8 @@ CXX = g++
 CXXFLAGS = -std=c++20 -O2
 
 # Target and source files
-TARGETS = calc_v1 calc_baseline calc_v2 calc_v3
-SOURCES = calculate_average_v1.cc calculate_average_baseline.cc calculate_average_v2.cc calculate_average_v3.cc
+TARGETS = calc_v1 calc_baseline calc_v2 calc_v3 create_measurements
+SOURCES = calculate_average_v1.cc calculate_average_baseline.cc calculate_average_v2.cc calculate_average_v3.cc create_measurements.cc
 
 # Pattern rule to compile each source file
 %: %.cc
@@ -23,6 +23,9 @@ calc_v2: calculate_average_v2.cc
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 calc_v3: calculate_average_v3.cc
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+create_measurements: create_measurements.cc
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 # Clean target
