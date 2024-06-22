@@ -81,7 +81,7 @@ void output(Stations& stations) {
 
     std::cout << name << "="
       << (float)station.minTemp / 10 << "/"
-      << station.averageTemp() / 10 << "/"
+      << std::round(station.averageTemp()) / 10 << "/"
       << (float) station.maxTemp / 10;
     if (i != names.size() - 1) {
       std::cout << ", ";

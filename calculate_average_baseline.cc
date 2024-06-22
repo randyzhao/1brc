@@ -6,6 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <functional>
+#include <cmath>
 
 bool DEBUGGING = true;
 
@@ -31,7 +32,7 @@ public:
   }
 
   double averageTemp() {
-    return totalTemp / measurementCount;
+    return std::round(totalTemp / measurementCount * 10) / 10;
   }
 };
 

@@ -49,12 +49,6 @@ void executeAndProfile(std::string profileName, Func&& func, Args&&... args) {
 
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> elapsed = end - start;
-
-  if (DEBUGGING) {
-    std::cerr << profileName << " duration: "
-      << std::fixed << std::setprecision(1) << elapsed.count() / 1000
-      << " seconds" << std::endl;
-  }
 }
 
 void output(Stations& stations) {
@@ -75,7 +69,7 @@ void output(Stations& stations) {
 
     std::cout << name << "="
       << (float)station.minTemp / 10 << "/"
-      << station.averageTemp() / 10 << "/"
+      << std::round(station.averageTemp()) / 10 << "/"
       << (float) station.maxTemp / 10;
     if (i != names.size() - 1) {
       std::cout << ", ";
