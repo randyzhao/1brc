@@ -52,6 +52,11 @@ calc
 calc_baseline
 calc_v*
 calculate_average
+calculate_average_baseline
+calculate_average_v1
+calculate_average_v2
+calculate_average_v3
+create_measurements
 output.txt
 output_sample.txt
 calculate_average.dSYM
